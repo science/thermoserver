@@ -1,0 +1,6 @@
+{
+  "config": {
+    "port": 8080,
+    "api_key": "abc123"
+  }
+}
