@@ -3,9 +3,9 @@ require 'sinatra'
 require 'json'
 require 'fileutils'
 require 'chronic'
-#if ENV['RACK_ENV'] == 'testing'
+if ENV['RACK_ENV'] == 'testing'
   require 'debugger'
-#end
+end
 
 module Thermoserver
   class Error < RuntimeError; end
@@ -22,14 +22,16 @@ module Thermoserver
     puts msg if Thermoserver::Debug.debug
   end
   SERVER_BOOT_FILE = 'boot-server.json'
+  ARGV_BOOT_FILE_INDEX = 0
+  ENV_BOOT_FILE_KEY = "thermoserver-boot-file-path"
   # TODO Load these values from a config file
   # class instance provides access to config data required to run server
   class Configuration
     attr_reader :port, :base_folder, :api_key
     
     def initialize(options = {})
-      boot_file = options[:boot_file] || SERVER_BOOT_FILE
-      @config = JSON.parse(IO.read(boot_file))
+      boot_file = ARGV[ARGV_BOOT_FILE_INDEX] || ENV[ENV_BOOT_FILE_KEY] || options[:boot_file] || SERVER_BOOT_FILE
+      @config = JSON.parse(File::read(boot_file))
       @base_folder = @config["config"]["base_folder"] || raise(Thermoserver::Error.new("base_folder not found in server boot file"))
       @api_key = @config["config"]["api_key"] || raise(Thermoserver::Error.new("api_key not found in server boot file"))
       @port = @config["config"]["port"] || raise(Thermoserver::Error.new("port not found in server boot file"))
@@ -187,4 +189,3 @@ post "/api/#{config.api_key}/file/:thermoname" do
   response.status = file_hash[:status]
   file_hash[:status_message] || ""
 end
-
