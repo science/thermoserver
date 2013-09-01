@@ -8,6 +8,8 @@ require 'rack/test'
 require 'fileutils'
 require 'tempfile'
 require 'debugger'
+require 'chronic'
+require 'uri'
 
 VALID_CONFIG_JSON_ORIG = 'valid-backbedroom.config.json.orig'
 
@@ -40,10 +42,31 @@ class ThermoserverTest < Minitest::Test
     assert_equal @api_key, 'abc123def'
   end
 
-  def test_get_config_file
+  def test_get_file
     get "/api/#{@api_key}/file/#{CONFIG_JSON}"
     assert_equal 200, last_response.status, last_response.body
-    assert_equal last_response.body, File::read(CONFIG_JSON)
+    assert_equal File::read(CONFIG_JSON), last_response.body
+  end
+
+  def test_get_file_if_newer
+    # set CONFIG_JSON on disk to known time and run the test in/around that time period
+    orig_file_time_str = "10-1-22 8:44am"
+    orig_file_time = Chronic.parse(orig_file_time_str)
+    File::utime(orig_file_time, orig_file_time, CONFIG_JSON)
+    assert_equal orig_file_time, File::atime(CONFIG_JSON)
+    newer_time_str = "10-1-22 8:45am"
+    newer_time_esc = URI::escape(newer_time_str)
+    newer_time = Chronic.parse(newer_time_str)
+    older_time_str = "10-1-22 8:43am"
+    older_time_esc = URI::escape(older_time_str)
+    # check that we get the file if file is newer than request
+    get "/api/#{@api_key}/if-file/newer-than/#{older_time_esc}/#{CONFIG_JSON}"
+    assert_equal 200, last_response.status, last_response.body
+    assert_equal File::read(CONFIG_JSON), last_response.body
+    # check that we don't get the file if the file is older than request
+    get "/api/#{@api_key}/if-file/newer-than/#{newer_time_esc}/#{CONFIG_JSON}"
+    assert_equal 204, last_response.status, last_response.body
+    assert_equal "", last_response.body, last_response.inspect
   end
 
   def test_post_config_file

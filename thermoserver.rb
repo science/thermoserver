@@ -2,6 +2,7 @@ require 'rubygems'
 require 'sinatra'
 require 'json'
 require 'fileutils'
+require 'chronic'
 #if ENV['RACK_ENV'] == 'testing'
   require 'debugger'
 #end
@@ -42,9 +43,12 @@ module Thermoserver
     File::basename(filename)==filename && filename.match(/^[a-zA-Z0-9.]+$/)
   end
 
-  # gets filename specified if it exists and the file requested
-  # passes filename simplification rules
-  # also filename is stripped of path information
+  # gets filename specified 
+  #   if it exists and the file requested passes filename simplification rules
+  #   and filename has no path
+  # options
+  #  :filename
+  #  :base_folder
   # returns hash structure with instructions and data
   # returns
   #   status => int (http response code)
@@ -62,7 +66,7 @@ module Thermoserver
       File::open(rooted_filename) do |file|
         retval[:file] = file.read
         retval[:status] = 200
-        retval[:authorized?] = true
+        retval[:authorized] = true
       end
     else
       if File::basename(filename)!=filename
@@ -78,6 +82,30 @@ module Thermoserver
         retval[:status] = 400 # Bad request / General denial
         retval[:status_message] = "File specified #{html_filename} cannot be obtained for unknown reasons."
       end
+    end
+    retval
+  end
+
+  # returns file if modified date on file is newer than date specified in options
+  # options:
+  #  :filename
+  #  :base_folder
+  #  :date_str
+  def self.get_file_if_newer_date(options)
+    filename = options[:filename]
+    base_folder = options[:base_folder]
+    rooted_filename = File::join(base_folder, filename)
+    date_str = options[:date]
+    date = Chronic.parse(date_str)
+    retval = {:authorized => false, :status => 500}
+    if filename_is_safe?(filename) && File::exists?(rooted_filename)
+      if File::mtime(filename) > date
+        retval = self.get_file(options)
+      else
+        retval = {:authorized => true, :status => 204}
+      end
+    else
+      retval = self.get_file(options) # we call get_file here even though it will fail, just to benefit from status code setting
     end
     retval
   end
@@ -126,8 +154,24 @@ get "/api/#{config.api_key}/file/:thermoname" do
   filename = params[:thermoname]
   file_hash = Thermoserver::get_file(:filename=>filename, :base_folder => config.base_folder)
   retval = ""
-  if file_hash[:authorized?]
+  if file_hash[:authorized]
     retval = file_hash[:file]
+  else # not authorized
+    retval = file_hash[:status_message]
+    response.status = file_hash[:status]
+  end
+  retval
+end
+
+get "/api/#{config.api_key}/if-file/newer-than/:date/:thermoname" do
+  date = params[:date]
+  filename = params[:thermoname]
+  file_hash = Thermoserver::get_file_if_newer_date(:filename=>filename, :base_folder => config.base_folder, :date => date)
+  if file_hash[:authorized] && file_hash[:status] == 200
+    retval = file_hash[:file]
+  elsif file_hash[:authorized] && file_hash[:status] == 204
+    retval = ""
+    response.status = 204
   else # not authorized
     retval = file_hash[:status_message]
     response.status = file_hash[:status]
