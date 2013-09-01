@@ -1,0 +1,26 @@
+Thermo uploads status file to server
+Thermo downloads config file from server
+  Thermo downloads config file in wait-for-change mode
+Client uploads config file to server
+Client downloads status file from server
+
+API
+
+POST: /api/[key]/file/[thermo-name]
+  JSON payload - written directly to file [thermo-name].config
+GET: /api/[key]/file/[thermo-name]
+  GETs [thermo-name file]
+
+Planned
+GET: /api/[key]/file/if-newer/date/[date-string]/[thermo-name]
+  Only returns content if file is newer than date specified
+GET: /api/[key]/file/if-not-match/hash/[hash-string]/thermo-name]
+  Only returns content if hash specified does not match hash of current file on disk
+HEAD: /api/[key]/file/[thermo-name]
+  Lets client check head to see if file has changed
+GET: /api/[key]/file/wait/[thermo-name]
+  GETs [thermo-name] file but return content only after the file changes (changes during wait period)
+  timeout is a string passed as Chronic compatible future time so that this will parse
+    Chronic.parse("#{params[:timeout] after now}")
+
+
